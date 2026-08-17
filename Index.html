@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Cloudflare Turnstile Script -->
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <style>
+    :root {
+      --primary: #005A9C; 
+      --secondary: #00A8E8; 
+      --bg: #F0F8FF; 
+      --white: #FFFFFF;
+      --text: #333333;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: var(--white);
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0, 90, 156, 0.15);
+      border-top: 6px solid var(--primary);
+    }
+    h2 {
+      color: var(--primary);
+      text-align: center;
+      margin-top: 0;
+      border-bottom: 2px solid var(--secondary);
+      padding-bottom: 15px;
+      margin-bottom: 25px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--primary);
+    }
+    .required {
+      color: red;
+    }
+    input[type="date"],
+    input[type="time"],
+    input[type="text"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      box-sizing: border-box;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--secondary);
+      outline: none;
+      box-shadow: 0 0 5px rgba(0, 168, 232, 0.3);
+    }
+    .hidden {
+      display: none;
+      margin-top: 10px;
+    }
+    button.submit-btn {
+      width: 100%;
+      background-color: var(--primary);
+      color: var(--white);
+      border: none;
+      padding: 12px;
+      font-size: 16px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      margin-top: 10px;
+    }
+    button.submit-btn:hover {
+      background-color: var(--secondary);
+    }
+    button.submit-btn:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    #loadingMessage {
+      display: none;
+      text-align: center;
+      color: var(--primary);
+      font-weight: bold;
+      margin-top: 15px;
+    }
+    .water-accent {
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%);
+      margin-bottom: 25px;
+      border-radius: 2px;
+    }
+
+    /* --- GAYA UNTUK CUSTOM POP-UP (MODAL) --- */
+    .modal-overlay {
+      display: none; 
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 9999;
+      justify-content: center; align-items: center;
+    }
+    .modal-box {
+      background: var(--white);
+      padding: 30px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      max-width: 80%;
+      width: 350px;
+      border-top: 5px solid var(--primary);
+    }
+    .modal-box h3 { color: var(--primary); margin-top: 0; margin-bottom: 10px; }
+    .modal-box p { color: var(--text); font-size: 16px; margin-bottom: 25px; line-height: 1.5; }
+    .btn-ok {
+      background-color: var(--primary);
+      color: var(--white);
+      border: none;
+      padding: 10px 30px;
+      font-size: 16px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    .btn-ok:hover { background-color: var(--secondary); }
+    .turnstile-container {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h2>Laporan Penyelenggaraan Sistem Bekalan Air</h2>
+    <div class="water-accent"></div>
+    
+    <form id="waterForm" onsubmit="handleFormSubmit(event)">
+      
+      <div class="form-group">
+        <label>Tarikh <span class="required">*</span></label>
+        <input type="date" id="tarikh" required>
+      </div>
+
+      <div class="form-group">
+        <label>Dilaksanakan Oleh <span class="required">*</span></label>
+        <select id="dilaksanakanOleh" required onchange="checkOther('dilaksanakanOleh', 'dilaksanakanOlehOtherGroup')">
+          <option value="" disabled selected>Pilih...</option>
+          <option value="ASZAIDY & NAQIU">ASZAIDY & NAQIU</option>
+          <option value="WAN & MUDSARIZAL">WAN & MUDSARIZAL</option>
+          <option value="Other">Lain-lain (Nyatakan)</option>
+        </select>
+        <div id="dilaksanakanOlehOtherGroup" class="hidden">
+          <input type="text" id="dilaksanakanOlehOther" placeholder="Sila nyatakan siapa...">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Masa Mula <span class="required">*</span></label>
+        <input type="time" id="masaMula" required>
+      </div>
+
+      <div class="form-group">
+        <label>Masa Siap <span class="required">*</span></label>
+        <input type="time" id="masaSiap" required>
+      </div>
+
+      <div class="form-group">
+        <label>Zon <span class="required">*</span></label>
+        <select id="zon" required onchange="populateJenis()">
+          <option value="" disabled selected>Memuatkan data lokasi...</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Jenis Penyelenggaraan <span class="required">*</span></label>
+        <select id="jenisPenyelenggaraan" required onchange="populateLokasi()" disabled>
+          <option value="" disabled selected>Sila pilih Zon dahulu</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Lokasi <span class="required">*</span></label>
+        <select id="lokasi" required disabled>
+          <option value="" disabled selected>Sila pilih Jenis Penyelenggaraan dahulu</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Kategori Penyelenggaraan <span class="required">*</span></label>
+        <select id="kategori" required>
+          <option value="" disabled selected>Pilih...</option>
+          <option value="BERJADUAL">BERJADUAL</option>
+          <option value="TIDAK BERJADUAL">TIDAK BERJADUAL</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Saiz <span class="required">*</span></label>
+        <select id="saiz" required onchange="checkOther('saiz', 'saizOtherGroup')">
+          <option value="" disabled selected>Pilih...</option>
+          <option value="1">1</option>
+          <option value="1.5">1.5</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="6">6</option>
+          <option value="8">8</option>
+          <option value="10">10</option>
+          <option value="12">12</option>
+          <option value="14">14</option>
+          <option value="15">15</option>
+          <option value="18">18</option>
+          <option value="20">20</option>
+          <option value="21">21</option>
+          <option value="24">24</option>
+          <option value="30">30</option>
+          <option value="36">36</option>
+          <option value="40">40</option>
+          <option value="48">48</option>
+          <option value="Other">Lain-lain</option>
+        </select>
+        <div id="saizOtherGroup" class="hidden">
+          <input type="text" id="saizOther" placeholder="Sila nyatakan saiz...">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Tindakan & Ulasan <span class="required">*</span></label>
+        <textarea id="tindakan" rows="4" required placeholder="Sila masukkan laporan tindakan anda di sini..."></textarea>
+      </div>
+
+      <!-- Cloudflare Turnstile Widget -->
+      <div class="turnstile-container">
+        <div class="cf-turnstile" data-sitekey="0x4AAAAAAESbl_1xCMyEAc2x"></div>
+      </div>
+
+      <button type="submit" id="submitBtn" class="submit-btn" disabled>Sila tunggu...</button>
+      <div id="loadingMessage">Sedang menyimpan data... Sila tunggu sebentar.</div>
+    </form>
+  </div>
+
+  <!-- STRUKTUR HTML UNTUK CUSTOM POP-UP -->
+  <div id="customModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3 id="modalTitle">Status Laporan</h3>
+      <p id="modalMessage">Mesej akan dipaparkan di sini.</p>
+      <button class="btn-ok" onclick="closeModal()">OK</button>
+    </div>
+  </div>
+
+  <script>
+    const WORKER_URL = "https://borangprv.sainspdwater.workers.dev/";
+    var lokasiData = {};
+
+    document.addEventListener("DOMContentLoaded", function() {
+      fetch(WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "getLokasi" })
+      })
+      .then(res => res.json())
+      .then(data => {
+        initializeDropdowns(data);
+      })
+      .catch(error => {
+        showModal("Ralat sambungan: Sila refresh muka surat.", "Ralat");
+        document.getElementById("zon").innerHTML = '<option value="" disabled selected>Gagal memuat turun data</option>';
+      });
+    });
+
+    function initializeDropdowns(data) {
+      if (!data) return; 
+      lokasiData = data;
+      
+      var zonSelect = document.getElementById("zon");
+      zonSelect.innerHTML = '<option value="" disabled selected>Pilih Zon...</option>';
+      
+      for (var zon in lokasiData) {
+        var option = document.createElement("option");
+        option.value = zon;
+        option.text = zon;
+        zonSelect.add(option);
+      }
+
+      var btn = document.getElementById("submitBtn");
+      btn.disabled = false;
+      btn.innerHTML = "Hantar Laporan";
+    }
+
+    function populateJenis() {
+      var zonValue = document.getElementById("zon").value;
+      var jenisSelect = document.getElementById("jenisPenyelenggaraan");
+      var lokasiSelect = document.getElementById("lokasi");
+      
+      jenisSelect.innerHTML = '<option value="" disabled selected>Pilih Jenis Penyelenggaraan...</option>';
+      lokasiSelect.innerHTML = '<option value="" disabled selected>Sila pilih Jenis Penyelenggaraan dahulu</option>';
+      lokasiSelect.disabled = true;
+
+      if (zonValue && lokasiData[zonValue]) {
+        jenisSelect.disabled = false;
+        for (var jenis in lokasiData[zonValue]) {
+          var option = document.createElement("option");
+          option.value = jenis;
+          option.text = jenis;
+          jenisSelect.add(option);
+        }
+      }
+    }
+
+    function populateLokasi() {
+      var zonValue = document.getElementById("zon").value;
+      var jenisValue = document.getElementById("jenisPenyelenggaraan").value;
+      var lokasiSelect = document.getElementById("lokasi");
+      
+      lokasiSelect.innerHTML = '<option value="" disabled selected>Pilih Lokasi...</option>';
+
+      if (zonValue && jenisValue && lokasiData[zonValue][jenisValue]) {
+        lokasiSelect.disabled = false;
+        var senaraiLokasi = lokasiData[zonValue][jenisValue];
+        senaraiLokasi.forEach(function(lokasi) {
+          var option = document.createElement("option");
+          option.value = lokasi;
+          option.text = lokasi;
+          lokasiSelect.add(option);
+        });
+      }
+    }
+
+    function checkOther(selectId, divId) {
+      var selectBox = document.getElementById(selectId);
+      var otherDiv = document.getElementById(divId);
+      var otherInput = otherDiv.querySelector('input');
+      
+      if (selectBox.value === "Other") {
+        otherDiv.style.display = "block";
+        otherInput.required = true;
+      } else {
+        otherDiv.style.display = "none";
+        otherInput.required = false;
+        otherInput.value = "";
+      }
+    }
+
+    function showModal(message, title) {
+      document.getElementById("modalTitle").innerText = title || "Status";
+      document.getElementById("modalMessage").innerText = message;
+      document.getElementById("customModal").style.display = "flex";
+    }
+
+    function closeModal() {
+      document.getElementById("customModal").style.display = "none";
+    }
+
+    function handleFormSubmit(event) {
+      event.preventDefault(); 
+
+      const turnstileToken = document.querySelector('[name="cf-turnstile-response"]').value;
+      if (!turnstileToken) {
+        showModal("Sila sahkan bahawa anda bukan bot pada widget Turnstile.", "Pengesahan Diperlukan");
+        return;
+      }
+      
+      document.getElementById("submitBtn").style.display = "none";
+      document.getElementById("loadingMessage").style.display = "block";
+
+      var formObject = {
+        tarikh: document.getElementById("tarikh").value,
+        dilaksanakanOleh: document.getElementById("dilaksanakanOleh").value,
+        dilaksanakanOlehOther: document.getElementById("dilaksanakanOlehOther").value,
+        masaMula: document.getElementById("masaMula").value,
+        masaSiap: document.getElementById("masaSiap").value,
+        zon: document.getElementById("zon").value,
+        jenisPenyelenggaraan: document.getElementById("jenisPenyelenggaraan").value,
+        lokasi: document.getElementById("lokasi").value,
+        kategori: document.getElementById("kategori").value,
+        saiz: document.getElementById("saiz").value,
+        saizOther: document.getElementById("saizOther").value,
+        tindakan: document.getElementById("tindakan").value
+      };
+
+      fetch(WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          action: "saveData", 
+          formObject: formObject,
+          turnstileToken: turnstileToken
+        })
+      })
+      .then(res => res.json())
+      .then(response => {
+        showModal(response.message || "Rekod Telah Berjaya Disimpan!", "Berjaya");
+        
+        document.getElementById("waterForm").reset();
+        
+        document.getElementById("jenisPenyelenggaraan").disabled = true;
+        document.getElementById("lokasi").disabled = true;
+        
+        document.getElementById("dilaksanakanOlehOtherGroup").style.display = "none";
+        document.getElementById("saizOtherGroup").style.display = "none";
+
+        document.getElementById("submitBtn").style.display = "block";
+        document.getElementById("loadingMessage").style.display = "none";
+
+        if (typeof turnstile !== 'undefined') {
+          turnstile.reset();
+        }
+      })
+      .catch(error => {
+        showModal("Gagal menghantar borang: " + error.toString(), "Ralat");
+        
+        document.getElementById("submitBtn").style.display = "block";
+        document.getElementById("loadingMessage").style.display = "none";
+
+        if (typeof turnstile !== 'undefined') {
+          turnstile.reset();
+        }
+      });
+    }
+  </script>
+</body>
+</html>
