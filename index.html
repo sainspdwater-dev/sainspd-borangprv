@@ -182,22 +182,25 @@
 
       <div class="form-group">
         <label>Zon <span class="required">*</span></label>
-        <select id="zon" required onchange="populateJenis()">
-          <option value="" disabled selected>Memuatkan data lokasi...</option>
+        <select id="zon" required onchange="populateLokasi()">
+          <option value="" disabled selected>Memuatkan data Zon...</option>
         </select>
       </div>
       
       <div class="form-group">
-        <label>Jenis Penyelenggaraan <span class="required">*</span></label>
-        <select id="jenisPenyelenggaraan" required onchange="populateLokasi()" disabled>
+        <label>Lokasi <span class="required">*</span></label>
+        <select id="lokasi" required disabled>
           <option value="" disabled selected>Sila pilih Zon dahulu</option>
         </select>
       </div>
 
       <div class="form-group">
-        <label>Lokasi <span class="required">*</span></label>
-        <select id="lokasi" required disabled>
-          <option value="" disabled selected>Sila pilih Jenis Penyelenggaraan dahulu</option>
+        <label>Jenis Penyelenggaraan <span class="required">*</span></label>
+        <select id="jenisPenyelenggaraan" required>
+          <option value="" disabled selected>Pilih...</option>
+          <option value="PRV">PRV</option>
+          <option value="ALTITUDE">ALTITUDE</option>
+          <option value="Lain-lain">Lain-lain</option>
         </select>
       </div>
 
@@ -276,7 +279,11 @@
       })
       .then(res => res.json())
       .then(data => {
-        initializeDropdowns(data);
+        if (data.status === "success") {
+          initializeDropdowns(data.data);
+        } else {
+          showModal(data.message || "Gagal memuat turun data", "Ralat");
+        }
       })
       .catch(error => {
         showModal("Ralat sambungan: Sila refresh muka surat.", "Ralat");
@@ -294,7 +301,7 @@
       for (var zon in lokasiData) {
         var option = document.createElement("option");
         option.value = zon;
-        option.text = zon;
+        option.text = "Zon " + zon;
         zonSelect.add(option);
       }
 
@@ -303,37 +310,16 @@
       btn.innerHTML = "Hantar Laporan";
     }
 
-    function populateJenis() {
-      var zonValue = document.getElementById("zon").value;
-      var jenisSelect = document.getElementById("jenisPenyelenggaraan");
-      var lokasiSelect = document.getElementById("lokasi");
-      
-      jenisSelect.innerHTML = '<option value="" disabled selected>Pilih Jenis Penyelenggaraan...</option>';
-      lokasiSelect.innerHTML = '<option value="" disabled selected>Sila pilih Jenis Penyelenggaraan dahulu</option>';
-      lokasiSelect.disabled = true;
-
-      if (zonValue && lokasiData[zonValue]) {
-        jenisSelect.disabled = false;
-        for (var jenis in lokasiData[zonValue]) {
-          var option = document.createElement("option");
-          option.value = jenis;
-          option.text = jenis;
-          jenisSelect.add(option);
-        }
-      }
-    }
-
     function populateLokasi() {
       var zonValue = document.getElementById("zon").value;
-      var jenisValue = document.getElementById("jenisPenyelenggaraan").value;
       var lokasiSelect = document.getElementById("lokasi");
       
       lokasiSelect.innerHTML = '<option value="" disabled selected>Pilih Lokasi...</option>';
+      lokasiSelect.disabled = true;
 
-      if (zonValue && jenisValue && lokasiData[zonValue][jenisValue]) {
+      if (zonValue && lokasiData[zonValue]) {
         lokasiSelect.disabled = false;
-        var senaraiLokasi = lokasiData[zonValue][jenisValue];
-        senaraiLokasi.forEach(function(lokasi) {
+        lokasiData[zonValue].forEach(function(lokasi) {
           var option = document.createElement("option");
           option.value = lokasi;
           option.text = lokasi;
@@ -386,8 +372,8 @@
         masaMula: document.getElementById("masaMula").value,
         masaSiap: document.getElementById("masaSiap").value,
         zon: document.getElementById("zon").value,
-        jenisPenyelenggaraan: document.getElementById("jenisPenyelenggaraan").value,
         lokasi: document.getElementById("lokasi").value,
+        jenisPenyelenggaraan: document.getElementById("jenisPenyelenggaraan").value,
         kategori: document.getElementById("kategori").value,
         saiz: document.getElementById("saiz").value,
         saizOther: document.getElementById("saizOther").value,
@@ -408,8 +394,6 @@
         showModal(response.message || "Rekod Telah Berjaya Disimpan!", "Berjaya");
         
         document.getElementById("waterForm").reset();
-        
-        document.getElementById("jenisPenyelenggaraan").disabled = true;
         document.getElementById("lokasi").disabled = true;
         
         document.getElementById("dilaksanakanOlehOtherGroup").style.display = "none";
