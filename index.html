@@ -2,8 +2,9 @@
 <html>
 <head>
   <base target="_top">
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Cloudflare Turnstile Script -->
+  <title>Borang Laporan Penyelenggaraan</title>
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   <style>
     :root {
@@ -104,8 +105,6 @@
       margin-bottom: 25px;
       border-radius: 2px;
     }
-
-    /* --- GAYA UNTUK CUSTOM POP-UP (MODAL) --- */
     .modal-overlay {
       display: none; 
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -152,6 +151,7 @@
     
     <form id="waterForm" onsubmit="handleFormSubmit(event)">
       
+      <!-- MAKLUMAT ASAS -->
       <div class="form-group">
         <label>Tarikh <span class="required">*</span></label>
         <input type="date" id="tarikh" required>
@@ -180,13 +180,32 @@
         <input type="time" id="masaSiap" required>
       </div>
 
+      <!-- MAKLUMAT PENYELENGGARAAN & LOKASI -->
+      <!-- 1. Kategori -->
+      <div class="form-group">
+        <label>Kategori Penyelenggaraan <span class="required">*</span></label>
+        <select id="kategori" required disabled>
+          <option value="" disabled selected>Memuatkan pangkalan data...</option>
+        </select>
+      </div>
+
+      <!-- 2. Jenis -->
+      <div class="form-group">
+        <label>Jenis Penyelenggaraan <span class="required">*</span></label>
+        <select id="jenisPenyelenggaraan" required disabled>
+          <option value="" disabled selected>Sila pilih Kategori dahulu</option>
+        </select>
+      </div>
+
+      <!-- 3. Zon -->
       <div class="form-group">
         <label>Zon <span class="required">*</span></label>
-        <select id="zon" required onchange="populateLokasi()">
-          <option value="" disabled selected>Memuatkan data Zon...</option>
+        <select id="zon" required disabled>
+          <option value="" disabled selected>Sila pilih Jenis dahulu</option>
         </select>
       </div>
       
+      <!-- 4. Lokasi -->
       <div class="form-group">
         <label>Lokasi <span class="required">*</span></label>
         <select id="lokasi" required disabled>
@@ -194,25 +213,7 @@
         </select>
       </div>
 
-      <div class="form-group">
-        <label>Jenis Penyelenggaraan <span class="required">*</span></label>
-        <select id="jenisPenyelenggaraan" required>
-          <option value="" disabled selected>Pilih...</option>
-          <option value="PRV">PRV</option>
-          <option value="ALTITUDE">ALTITUDE</option>
-          <option value="Lain-lain">Lain-lain</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label>Kategori Penyelenggaraan <span class="required">*</span></label>
-        <select id="kategori" required>
-          <option value="" disabled selected>Pilih...</option>
-          <option value="BERJADUAL">BERJADUAL</option>
-          <option value="TIDAK BERJADUAL">TIDAK BERJADUAL</option>
-        </select>
-      </div>
-
+      <!-- MAKLUMAT TAMBAHAN & TINDAKAN -->
       <div class="form-group">
         <label>Saiz <span class="required">*</span></label>
         <select id="saiz" required onchange="checkOther('saiz', 'saizOtherGroup')">
@@ -250,6 +251,7 @@
 
       <!-- Cloudflare Turnstile Widget -->
       <div class="turnstile-container">
+        <!-- Gantikan sitekey dengan sitekey Turnstile sebenar anda sekiranya berbeza -->
         <div class="cf-turnstile" data-sitekey="0x4AAAAAAESbl_1xCMyEAc2x"></div>
       </div>
 
@@ -258,7 +260,6 @@
     </form>
   </div>
 
-  <!-- STRUKTUR HTML UNTUK CUSTOM POP-UP -->
   <div id="customModal" class="modal-overlay">
     <div class="modal-box">
       <h3 id="modalTitle">Status Laporan</h3>
@@ -268,8 +269,9 @@
   </div>
 
   <script>
+    // Tukar dengan pautan Cloudflare Worker anda
     const WORKER_URL = "https://borangprv.sainspdwater.workers.dev/";
-    var lokasiData = {};
+    let masterData = null;
 
     document.addEventListener("DOMContentLoaded", function() {
       fetch(WORKER_URL, {
@@ -287,44 +289,132 @@
       })
       .catch(error => {
         showModal("Ralat sambungan: Sila refresh muka surat.", "Ralat");
-        document.getElementById("zon").innerHTML = '<option value="" disabled selected>Gagal memuat turun data</option>';
+        document.getElementById("kategori").innerHTML = '<option value="" disabled selected>Gagal memuat turun data</option>';
       });
     });
 
     function initializeDropdowns(data) {
       if (!data) return; 
-      lokasiData = data;
+      masterData = data;
       
-      var zonSelect = document.getElementById("zon");
-      zonSelect.innerHTML = '<option value="" disabled selected>Pilih Zon...</option>';
-      
-      for (var zon in lokasiData) {
-        var option = document.createElement("option");
-        option.value = zon;
-        option.text = "Zon " + zon;
-        zonSelect.add(option);
-      }
+      const katSelect = document.getElementById("kategori");
+      katSelect.innerHTML = `
+        <option value="" disabled selected>Pilih Kategori...</option>
+        <option value="BERJADUAL">BERJADUAL</option>
+        <option value="TIDAK BERJADUAL">TIDAK BERJADUAL</option>
+      `;
+      katSelect.disabled = false;
+
+      // Event Listeners Berangkai
+      katSelect.addEventListener("change", handleKategoriChange);
+      document.getElementById("jenisPenyelenggaraan").addEventListener("change", handleJenisChange);
+      document.getElementById("zon").addEventListener("change", handleZonChange);
 
       var btn = document.getElementById("submitBtn");
       btn.disabled = false;
       btn.innerHTML = "Hantar Laporan";
     }
 
-    function populateLokasi() {
-      var zonValue = document.getElementById("zon").value;
-      var lokasiSelect = document.getElementById("lokasi");
-      
-      lokasiSelect.innerHTML = '<option value="" disabled selected>Pilih Lokasi...</option>';
-      lokasiSelect.disabled = true;
+    function resetDropdown(id, defaultText) {
+      const select = document.getElementById(id);
+      select.innerHTML = `<option value="" disabled selected>${defaultText}</option>`;
+      select.disabled = true;
+    }
 
-      if (zonValue && lokasiData[zonValue]) {
-        lokasiSelect.disabled = false;
-        lokasiData[zonValue].forEach(function(lokasi) {
-          var option = document.createElement("option");
-          option.value = lokasi;
-          option.text = lokasi;
-          lokasiSelect.add(option);
-        });
+    function populateDropdown(id, optionsArray) {
+      const select = document.getElementById(id);
+      select.disabled = false;
+      if (optionsArray.length === 0) {
+         let el = document.createElement("option");
+         el.value = "";
+         el.text = "Tiada pilihan / Selesai untuk Bulan Ini";
+         el.disabled = true;
+         el.selected = true;
+         select.add(el);
+      } else {
+         optionsArray.forEach(opt => {
+           if (opt) {
+             let el = document.createElement("option");
+             el.value = opt;
+             // Tambah perkataan 'Zon' supaya kemas (jika belum ada)
+             el.text = (id === "zon" && !String(opt).toLowerCase().includes("zon")) ? "Zon " + opt : opt;
+             select.add(el);
+           }
+         });
+      }
+    }
+
+    // Fungsi mendapatkan jadual semasa (Mengecualikan lokasi yang telah siap)
+    function getAvailableBerjadualTasks() {
+      if (!masterData) return [];
+      return masterData.schedule.filter(t => 
+        t.bulan === masterData.currentMonth && 
+        !masterData.completed.includes(t.lokasi.toUpperCase())
+      );
+    }
+
+    // 1. Apabila KATEGORI dipilih
+    function handleKategoriChange() {
+      const kat = document.getElementById("kategori").value;
+      resetDropdown("jenisPenyelenggaraan", "Pilih Jenis...");
+      resetDropdown("zon", "Pilih Zon...");
+      resetDropdown("lokasi", "Pilih Lokasi...");
+
+      let select = document.getElementById("jenisPenyelenggaraan");
+      select.disabled = false;
+      select.innerHTML = `<option value="" disabled selected>Pilih Jenis...</option>`;
+
+      if (kat === "BERJADUAL") {
+        let tasks = getAvailableBerjadualTasks();
+        let jenisSet = new Set(tasks.map(t => t.jenis));
+        populateDropdown("jenisPenyelenggaraan", Array.from(jenisSet).filter(Boolean));
+      } else if (kat === "TIDAK BERJADUAL") {
+        populateDropdown("jenisPenyelenggaraan", ["PRV", "ALTITUDE", "Lain-lain"]);
+      }
+    }
+
+    // 2. Apabila JENIS dipilih
+    function handleJenisChange() {
+      const kat = document.getElementById("kategori").value;
+      const jenis = document.getElementById("jenisPenyelenggaraan").value;
+      resetDropdown("zon", "Pilih Zon...");
+      resetDropdown("lokasi", "Pilih Lokasi...");
+
+      let select = document.getElementById("zon");
+      select.disabled = false;
+      select.innerHTML = `<option value="" disabled selected>Pilih Zon...</option>`;
+
+      if (kat === "BERJADUAL") {
+        let tasks = getAvailableBerjadualTasks().filter(t => t.jenis === jenis);
+        let zonSet = new Set(tasks.map(t => t.zon));
+        // Sort num & huruf
+        let sortedZon = Array.from(zonSet).filter(Boolean).sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
+        populateDropdown("zon", sortedZon);
+      } else if (kat === "TIDAK BERJADUAL") {
+        let sortedZon = Object.keys(masterData.zonMap).sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
+        populateDropdown("zon", sortedZon);
+      }
+    }
+
+    // 3. Apabila ZON dipilih
+    function handleZonChange() {
+      const kat = document.getElementById("kategori").value;
+      const jenis = document.getElementById("jenisPenyelenggaraan").value;
+      const zon = document.getElementById("zon").value;
+
+      let select = document.getElementById("lokasi");
+      select.disabled = false;
+      select.innerHTML = `<option value="" disabled selected>Pilih Lokasi...</option>`;
+
+      if (kat === "BERJADUAL") {
+        let tasks = getAvailableBerjadualTasks().filter(t => t.jenis === jenis && String(t.zon) === String(zon));
+        let lokasiSet = new Set(tasks.map(t => t.lokasi));
+        populateDropdown("lokasi", Array.from(lokasiSet).filter(Boolean).sort());
+      } else if (kat === "TIDAK BERJADUAL") {
+        let lokasis = masterData.zonMap[zon] || [];
+        // Gunakan Set untuk elak duplikasi jika ada di sheet Zon
+        let unikLokasi = Array.from(new Set(lokasis));
+        populateDropdown("lokasi", unikLokasi.sort());
       }
     }
 
@@ -371,10 +461,10 @@
         dilaksanakanOlehOther: document.getElementById("dilaksanakanOlehOther").value,
         masaMula: document.getElementById("masaMula").value,
         masaSiap: document.getElementById("masaSiap").value,
+        kategori: document.getElementById("kategori").value,
+        jenisPenyelenggaraan: document.getElementById("jenisPenyelenggaraan").value,
         zon: document.getElementById("zon").value,
         lokasi: document.getElementById("lokasi").value,
-        jenisPenyelenggaraan: document.getElementById("jenisPenyelenggaraan").value,
-        kategori: document.getElementById("kategori").value,
         saiz: document.getElementById("saiz").value,
         saizOther: document.getElementById("saizOther").value,
         tindakan: document.getElementById("tindakan").value
@@ -394,13 +484,26 @@
         showModal(response.message || "Rekod Telah Berjaya Disimpan!", "Berjaya");
         
         document.getElementById("waterForm").reset();
-        document.getElementById("lokasi").disabled = true;
+        
+        // Reset Dropdowns Kategori ke Bawah
+        resetDropdown("jenisPenyelenggaraan", "Sila pilih Kategori dahulu");
+        resetDropdown("zon", "Sila pilih Jenis dahulu");
+        resetDropdown("lokasi", "Sila pilih Zon dahulu");
         
         document.getElementById("dilaksanakanOlehOtherGroup").style.display = "none";
         document.getElementById("saizOtherGroup").style.display = "none";
 
         document.getElementById("submitBtn").style.display = "block";
         document.getElementById("loadingMessage").style.display = "none";
+
+        // Refresh Data jika berjaya hantar (supaya lokasi yang baru diisi terus hilang dari dropdown)
+        fetch(WORKER_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "getLokasi" })
+        })
+        .then(res => res.json())
+        .then(data => { if (data.status === "success") masterData = data.data; });
 
         if (typeof turnstile !== 'undefined') {
           turnstile.reset();
