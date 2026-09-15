@@ -251,7 +251,6 @@
 
       <!-- Cloudflare Turnstile Widget -->
       <div class="turnstile-container">
-        <!-- Gantikan sitekey dengan sitekey Turnstile sebenar anda sekiranya berbeza -->
         <div class="cf-turnstile" data-sitekey="0x4AAAAAAESbl_1xCMyEAc2x"></div>
       </div>
 
@@ -269,7 +268,6 @@
   </div>
 
   <script>
-    // Tukar dengan pautan Cloudflare Worker anda
     const WORKER_URL = "https://borangprv.sainspdwater.workers.dev/";
     let masterData = null;
 
@@ -327,7 +325,7 @@
       if (optionsArray.length === 0) {
          let el = document.createElement("option");
          el.value = "";
-         el.text = "Tiada pilihan / Selesai untuk Bulan Ini";
+         el.text = "Tiada pilihan / Selesai";
          el.disabled = true;
          el.selected = true;
          select.add(el);
@@ -344,7 +342,6 @@
       }
     }
 
-    // Fungsi mendapatkan jadual semasa (Mengecualikan lokasi yang telah siap)
     function getAvailableBerjadualTasks() {
       if (!masterData) return [];
       return masterData.schedule.filter(t => 
@@ -387,11 +384,10 @@
       if (kat === "BERJADUAL") {
         let tasks = getAvailableBerjadualTasks().filter(t => t.jenis === jenis);
         let zonSet = new Set(tasks.map(t => t.zon));
-        // Sort num & huruf
-        let sortedZon = Array.from(zonSet).filter(Boolean).sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
+        let sortedZon = Array.from(zonSet).filter(Boolean).sort((a,b) => String(a).localeCompare(String(b), undefined, {numeric: true}));
         populateDropdown("zon", sortedZon);
       } else if (kat === "TIDAK BERJADUAL") {
-        let sortedZon = Object.keys(masterData.zonMap).sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
+        let sortedZon = Object.keys(masterData.zonMap).sort((a,b) => String(a).localeCompare(String(b), undefined, {numeric: true}));
         populateDropdown("zon", sortedZon);
       }
     }
@@ -412,7 +408,6 @@
         populateDropdown("lokasi", Array.from(lokasiSet).filter(Boolean).sort());
       } else if (kat === "TIDAK BERJADUAL") {
         let lokasis = masterData.zonMap[zon] || [];
-        // Gunakan Set untuk elak duplikasi jika ada di sheet Zon
         let unikLokasi = Array.from(new Set(lokasis));
         populateDropdown("lokasi", unikLokasi.sort());
       }
@@ -485,7 +480,6 @@
         
         document.getElementById("waterForm").reset();
         
-        // Reset Dropdowns Kategori ke Bawah
         resetDropdown("jenisPenyelenggaraan", "Sila pilih Kategori dahulu");
         resetDropdown("zon", "Sila pilih Jenis dahulu");
         resetDropdown("lokasi", "Sila pilih Zon dahulu");
@@ -496,7 +490,6 @@
         document.getElementById("submitBtn").style.display = "block";
         document.getElementById("loadingMessage").style.display = "none";
 
-        // Refresh Data jika berjaya hantar (supaya lokasi yang baru diisi terus hilang dari dropdown)
         fetch(WORKER_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
