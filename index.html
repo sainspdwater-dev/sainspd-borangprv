@@ -105,12 +105,16 @@
       margin-bottom: 25px;
       border-radius: 2px;
     }
+
+    /* --- GAYA POP-UP MODAL --- */
     .modal-overlay {
       display: none; 
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0, 0, 0, 0.6);
       z-index: 9999;
       justify-content: center; align-items: center;
+      padding: 20px;
+      box-sizing: border-box;
     }
     .modal-box {
       background: var(--white);
@@ -118,12 +122,14 @@
       border-radius: 12px;
       text-align: center;
       box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-      max-width: 80%;
-      width: 350px;
+      max-width: 100%;
+      width: 450px;
       border-top: 5px solid var(--primary);
+      max-height: 90vh;
+      overflow-y: auto;
     }
     .modal-box h3 { color: var(--primary); margin-top: 0; margin-bottom: 10px; }
-    .modal-box p { color: var(--text); font-size: 16px; margin-bottom: 25px; line-height: 1.5; }
+    .modal-box p { color: var(--text); font-size: 15px; margin-bottom: 20px; line-height: 1.5; }
     .btn-ok {
       background-color: var(--primary);
       color: var(--white);
@@ -134,8 +140,38 @@
       border-radius: 6px;
       cursor: pointer;
       transition: 0.3s;
+      width: 100%;
     }
     .btn-ok:hover { background-color: var(--secondary); }
+    
+    /* Butang Salin WhatsApp */
+    .btn-copy {
+      background-color: #25D366; /* Warna Hijau WhatsApp */
+      color: white;
+      border: none;
+      padding: 12px;
+      font-size: 16px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      width: 100%;
+      margin-bottom: 10px;
+    }
+    .btn-copy:hover { background-color: #128C7E; }
+    
+    #whatsappText {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      box-sizing: border-box;
+      font-size: 14px;
+      margin-bottom: 15px;
+      resize: vertical;
+      font-family: monospace;
+      text-align: left;
+    }
     .turnstile-container {
       display: flex;
       justify-content: center;
@@ -181,7 +217,6 @@
       </div>
 
       <!-- MAKLUMAT PENYELENGGARAAN & LOKASI -->
-      <!-- 1. Kategori -->
       <div class="form-group">
         <label>Kategori Penyelenggaraan <span class="required">*</span></label>
         <select id="kategori" required disabled>
@@ -189,7 +224,6 @@
         </select>
       </div>
 
-      <!-- 2. Jenis -->
       <div class="form-group">
         <label>Jenis Penyelenggaraan <span class="required">*</span></label>
         <select id="jenisPenyelenggaraan" required disabled>
@@ -197,7 +231,6 @@
         </select>
       </div>
 
-      <!-- 3. Zon -->
       <div class="form-group">
         <label>Zon <span class="required">*</span></label>
         <select id="zon" required disabled>
@@ -205,7 +238,6 @@
         </select>
       </div>
       
-      <!-- 4. Lokasi -->
       <div class="form-group">
         <label>Lokasi <span class="required">*</span></label>
         <select id="lokasi" required disabled>
@@ -259,15 +291,24 @@
     </form>
   </div>
 
+  <!-- STRUKTUR MODAL BAHARU UNTUK WHATSAPP -->
   <div id="customModal" class="modal-overlay">
     <div class="modal-box">
       <h3 id="modalTitle">Status Laporan</h3>
       <p id="modalMessage">Mesej akan dipaparkan di sini.</p>
-      <button class="btn-ok" onclick="closeModal()">OK</button>
+      
+      <!-- Bahagian Copy WhatsApp (Hanya muncul jika berjaya) -->
+      <div id="copySection" style="display: none;">
+        <textarea id="whatsappText" rows="12" readonly></textarea>
+        <button type="button" class="btn-copy" onclick="copyWhatsAppText()">Salin Mesej WhatsApp (Copy)</button>
+      </div>
+
+      <button class="btn-ok" onclick="closeModal()">Tutup Borang</button>
     </div>
   </div>
 
   <script>
+    // Tukar dengan pautan Cloudflare Worker anda
     const WORKER_URL = "https://borangprv.sainspdwater.workers.dev/";
     let masterData = null;
 
@@ -303,10 +344,15 @@
       `;
       katSelect.disabled = false;
 
-      // Event Listeners Berangkai
       katSelect.addEventListener("change", handleKategoriChange);
       document.getElementById("jenisPenyelenggaraan").addEventListener("change", handleJenisChange);
       document.getElementById("zon").addEventListener("change", handleZonChange);
+
+      document.getElementById("tarikh").addEventListener("change", function() {
+        if (document.getElementById("kategori").value) {
+           handleKategoriChange(); 
+        }
+      });
 
       var btn = document.getElementById("submitBtn");
       btn.disabled = false;
@@ -334,7 +380,6 @@
            if (opt) {
              let el = document.createElement("option");
              el.value = opt;
-             // Tambah perkataan 'Zon' supaya kemas (jika belum ada)
              el.text = (id === "zon" && !String(opt).toLowerCase().includes("zon")) ? "Zon " + opt : opt;
              select.add(el);
            }
@@ -342,17 +387,49 @@
       }
     }
 
-    function getAvailableBerjadualTasks() {
-      if (!masterData) return [];
-      return masterData.schedule.filter(t => 
-        t.bulan === masterData.currentMonth && 
-        !masterData.completed.includes(t.lokasi.toUpperCase())
-      );
+    function getSelectedDateInfo() {
+      var dateVal = document.getElementById("tarikh").value;
+      if (!dateVal) return null;
+      var d = new Date(dateVal);
+      var months = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
+      return {
+        bulan: months[d.getMonth()],
+        tahun: d.getFullYear()
+      };
     }
 
-    // 1. Apabila KATEGORI dipilih
+    function getAvailableBerjadualTasks() {
+      if (!masterData) return [];
+      var dateInfo = getSelectedDateInfo();
+      if (!dateInfo) return []; 
+      
+      return masterData.schedule.filter(t => {
+        if (t.bulan !== dateInfo.bulan) return false; 
+        
+        var isCompleted = masterData.completed.some(c => 
+          c.lokasi === t.lokasi.toUpperCase() && 
+          c.bulan === dateInfo.bulan && 
+          c.tahun === dateInfo.tahun
+        );
+        
+        return !isCompleted;
+      });
+    }
+
+    function getTidakBerjadualTasks() {
+       if (!masterData) return [];
+       return masterData.schedule;
+    }
+
     function handleKategoriChange() {
       const kat = document.getElementById("kategori").value;
+      
+      if (kat === "BERJADUAL" && !document.getElementById("tarikh").value) {
+         showModal("Sila isi ruangan Tarikh dahulu untuk melihat senarai Berjadual.", "Peringatan");
+         document.getElementById("kategori").value = ""; 
+         return;
+      }
+
       resetDropdown("jenisPenyelenggaraan", "Pilih Jenis...");
       resetDropdown("zon", "Pilih Zon...");
       resetDropdown("lokasi", "Pilih Lokasi...");
@@ -361,16 +438,11 @@
       select.disabled = false;
       select.innerHTML = `<option value="" disabled selected>Pilih Jenis...</option>`;
 
-      if (kat === "BERJADUAL") {
-        let tasks = getAvailableBerjadualTasks();
-        let jenisSet = new Set(tasks.map(t => t.jenis));
-        populateDropdown("jenisPenyelenggaraan", Array.from(jenisSet).filter(Boolean));
-      } else if (kat === "TIDAK BERJADUAL") {
-        populateDropdown("jenisPenyelenggaraan", ["PRV", "ALTITUDE", "Lain-lain"]);
-      }
+      let tasks = kat === "BERJADUAL" ? getAvailableBerjadualTasks() : getTidakBerjadualTasks();
+      let jenisSet = new Set(tasks.map(t => t.jenis));
+      populateDropdown("jenisPenyelenggaraan", Array.from(jenisSet).filter(Boolean));
     }
 
-    // 2. Apabila JENIS dipilih
     function handleJenisChange() {
       const kat = document.getElementById("kategori").value;
       const jenis = document.getElementById("jenisPenyelenggaraan").value;
@@ -381,18 +453,14 @@
       select.disabled = false;
       select.innerHTML = `<option value="" disabled selected>Pilih Zon...</option>`;
 
-      if (kat === "BERJADUAL") {
-        let tasks = getAvailableBerjadualTasks().filter(t => t.jenis === jenis);
-        let zonSet = new Set(tasks.map(t => t.zon));
-        let sortedZon = Array.from(zonSet).filter(Boolean).sort((a,b) => String(a).localeCompare(String(b), undefined, {numeric: true}));
-        populateDropdown("zon", sortedZon);
-      } else if (kat === "TIDAK BERJADUAL") {
-        let sortedZon = Object.keys(masterData.zonMap).sort((a,b) => String(a).localeCompare(String(b), undefined, {numeric: true}));
-        populateDropdown("zon", sortedZon);
-      }
+      let tasks = kat === "BERJADUAL" ? getAvailableBerjadualTasks() : getTidakBerjadualTasks();
+      let filteredTasks = tasks.filter(t => t.jenis === jenis);
+      
+      let zonSet = new Set(filteredTasks.map(t => t.zon));
+      let sortedZon = Array.from(zonSet).filter(Boolean).sort((a,b) => String(a).localeCompare(String(b), undefined, {numeric: true}));
+      populateDropdown("zon", sortedZon);
     }
 
-    // 3. Apabila ZON dipilih
     function handleZonChange() {
       const kat = document.getElementById("kategori").value;
       const jenis = document.getElementById("jenisPenyelenggaraan").value;
@@ -402,15 +470,11 @@
       select.disabled = false;
       select.innerHTML = `<option value="" disabled selected>Pilih Lokasi...</option>`;
 
-      if (kat === "BERJADUAL") {
-        let tasks = getAvailableBerjadualTasks().filter(t => t.jenis === jenis && String(t.zon) === String(zon));
-        let lokasiSet = new Set(tasks.map(t => t.lokasi));
-        populateDropdown("lokasi", Array.from(lokasiSet).filter(Boolean).sort());
-      } else if (kat === "TIDAK BERJADUAL") {
-        let lokasis = masterData.zonMap[zon] || [];
-        let unikLokasi = Array.from(new Set(lokasis));
-        populateDropdown("lokasi", unikLokasi.sort());
-      }
+      let tasks = kat === "BERJADUAL" ? getAvailableBerjadualTasks() : getTidakBerjadualTasks();
+      let filteredTasks = tasks.filter(t => t.jenis === jenis && String(t.zon) === String(zon));
+      
+      let lokasiSet = new Set(filteredTasks.map(t => t.lokasi));
+      populateDropdown("lokasi", Array.from(lokasiSet).filter(Boolean).sort());
     }
 
     function checkOther(selectId, divId) {
@@ -428,14 +492,57 @@
       }
     }
 
-    function showModal(message, title) {
+    // FUNGSI MEMBINA TEKS WHATSAPP
+    function generateWhatsAppText(formObj) {
+      let pelaksana = (formObj.dilaksanakanOleh === "Other") ? formObj.dilaksanakanOlehOther : formObj.dilaksanakanOleh;
+      let saiz = (formObj.saiz === "Other") ? formObj.saizOther : formObj.saiz;
+      let zonText = String(formObj.zon).toLowerCase().includes("zon") ? formObj.zon : "Zon " + formObj.zon;
+
+      return `*Tarikh* - ${formObj.tarikh}
+*Dilaksanakan Oleh*  - ${pelaksana}
+*Masa Mula* - ${formObj.masaMula}
+*Masa Siap* - ${formObj.masaSiap}
+*Kategori Penyelenggaraan* - ${formObj.kategori}
+*Jenis Penyelenggaraan* - ${formObj.jenisPenyelenggaraan}
+*Zon* - ${zonText}
+*Lokasi* - ${formObj.lokasi}
+*Saiz* - ${saiz}
+*Tindakan & Ulasan* - ${formObj.tindakan}`;
+    }
+
+    // UPDATE PADA FUNGSI SHOW MODAL
+    function showModal(message, title, waText = null) {
       document.getElementById("modalTitle").innerText = title || "Status";
       document.getElementById("modalMessage").innerText = message;
+      
+      let copySection = document.getElementById("copySection");
+      if (waText) {
+        document.getElementById("whatsappText").value = waText;
+        copySection.style.display = "block";
+      } else {
+        copySection.style.display = "none";
+      }
+
       document.getElementById("customModal").style.display = "flex";
     }
 
     function closeModal() {
       document.getElementById("customModal").style.display = "none";
+    }
+
+    // FUNGSI MENYALIN TEKS (COPY CLIPBOARD)
+    function copyWhatsAppText() {
+      let copyText = document.getElementById("whatsappText");
+      copyText.select();
+      copyText.setSelectionRange(0, 99999); // Untuk peranti mudah alih
+
+      navigator.clipboard.writeText(copyText.value).then(() => {
+        alert("Mesej telah berjaya disalin! Sila 'Paste' di aplikasi WhatsApp anda.");
+      }).catch(err => {
+        // Fallback jika API clipboard dihalang oleh pelayar lama
+        document.execCommand("copy");
+        alert("Mesej telah berjaya disalin! Sila 'Paste' di aplikasi WhatsApp anda.");
+      });
     }
 
     function handleFormSubmit(event) {
@@ -465,6 +572,9 @@
         tindakan: document.getElementById("tindakan").value
       };
 
+      // Simpan teks awal-awal sebelum borang di-reset
+      let whatsappMessage = generateWhatsAppText(formObject);
+
       fetch(WORKER_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -476,7 +586,8 @@
       })
       .then(res => res.json())
       .then(response => {
-        showModal(response.message || "Rekod Telah Berjaya Disimpan!", "Berjaya");
+        // Panggil modal kejayaan berserta teks whatsapp
+        showModal(response.message || "Rekod Telah Berjaya Disimpan!", "Berjaya", whatsappMessage);
         
         document.getElementById("waterForm").reset();
         
