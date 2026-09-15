@@ -131,8 +131,8 @@
     .modal-box h3 { color: var(--primary); margin-top: 0; margin-bottom: 10px; }
     .modal-box p { color: var(--text); font-size: 15px; margin-bottom: 20px; line-height: 1.5; }
     .btn-ok {
-      background-color: var(--primary);
-      color: var(--white);
+      background-color: #cccccc;
+      color: #333;
       border: none;
       padding: 10px 30px;
       font-size: 16px;
@@ -141,12 +141,12 @@
       cursor: pointer;
       transition: 0.3s;
       width: 100%;
+      margin-top: 5px;
     }
-    .btn-ok:hover { background-color: var(--secondary); }
+    .btn-ok:hover { background-color: #aaaaaa; }
     
-    /* Butang Salin WhatsApp */
-    .btn-copy {
-      background-color: #25D366; /* Warna Hijau WhatsApp */
+    /* Butang Tindakan Custom */
+    .btn-wa, .btn-copy {
       color: white;
       border: none;
       padding: 12px;
@@ -158,7 +158,11 @@
       width: 100%;
       margin-bottom: 10px;
     }
-    .btn-copy:hover { background-color: #128C7E; }
+    .btn-wa { background-color: #25D366; } /* Hijau WhatsApp */
+    .btn-wa:hover { background-color: #128C7E; }
+    
+    .btn-copy { background-color: var(--primary); } /* Biru untuk Copy */
+    .btn-copy:hover { background-color: var(--secondary); }
     
     #whatsappText {
       width: 100%;
@@ -297,10 +301,15 @@
       <h3 id="modalTitle">Status Laporan</h3>
       <p id="modalMessage">Mesej akan dipaparkan di sini.</p>
       
-      <!-- Bahagian Copy WhatsApp (Hanya muncul jika berjaya) -->
+      <!-- Bahagian Copy & Link WhatsApp (Hanya muncul jika berjaya) -->
       <div id="copySection" style="display: none;">
         <textarea id="whatsappText" rows="12" readonly></textarea>
-        <button type="button" class="btn-copy" onclick="copyWhatsAppText()">Salin Mesej WhatsApp (Copy)</button>
+        
+        <!-- Butang Link terus ke WhatsApp -->
+        <button type="button" class="btn-wa" onclick="sendToWhatsApp()">Hantar Terus ke WhatsApp</button>
+        
+        <!-- Butang Copy Manual -->
+        <button type="button" class="btn-copy" onclick="copyWhatsAppText()">Salin Mesej Sahaja (Copy)</button>
       </div>
 
       <button class="btn-ok" onclick="closeModal()">Tutup Borang</button>
@@ -308,7 +317,6 @@
   </div>
 
   <script>
-    // Tukar dengan pautan Cloudflare Worker anda
     const WORKER_URL = "https://borangprv.sainspdwater.workers.dev/";
     let masterData = null;
 
@@ -510,7 +518,6 @@
 *Tindakan & Ulasan* - ${formObj.tindakan}`;
     }
 
-    // UPDATE PADA FUNGSI SHOW MODAL
     function showModal(message, title, waText = null) {
       document.getElementById("modalTitle").innerText = title || "Status";
       document.getElementById("modalMessage").innerText = message;
@@ -530,19 +537,27 @@
       document.getElementById("customModal").style.display = "none";
     }
 
-    // FUNGSI MENYALIN TEKS (COPY CLIPBOARD)
+    // FUNGSI COPY CLIPBOARD (MANUAL)
     function copyWhatsAppText() {
       let copyText = document.getElementById("whatsappText");
       copyText.select();
-      copyText.setSelectionRange(0, 99999); // Untuk peranti mudah alih
+      copyText.setSelectionRange(0, 99999); 
 
       navigator.clipboard.writeText(copyText.value).then(() => {
-        alert("Mesej telah berjaya disalin! Sila 'Paste' di aplikasi WhatsApp anda.");
+        alert("Mesej telah disalin!");
       }).catch(err => {
-        // Fallback jika API clipboard dihalang oleh pelayar lama
         document.execCommand("copy");
-        alert("Mesej telah berjaya disalin! Sila 'Paste' di aplikasi WhatsApp anda.");
+        alert("Mesej telah disalin!");
       });
+    }
+
+    // FUNGSI BUKA TERUS KE WHATSAPP APP
+    function sendToWhatsApp() {
+      let text = document.getElementById("whatsappText").value;
+      // encodeURIComponent memastikan simbol seperti 'enter' (new line) dan * dihantar ke URL dengan betul
+      let encodedText = encodeURIComponent(text);
+      // Membuka Pautan API rasmi WhatsApp
+      window.open("https://wa.me/?text=" + encodedText, "_blank");
     }
 
     function handleFormSubmit(event) {
@@ -572,7 +587,6 @@
         tindakan: document.getElementById("tindakan").value
       };
 
-      // Simpan teks awal-awal sebelum borang di-reset
       let whatsappMessage = generateWhatsAppText(formObject);
 
       fetch(WORKER_URL, {
@@ -586,7 +600,6 @@
       })
       .then(res => res.json())
       .then(response => {
-        // Panggil modal kejayaan berserta teks whatsapp
         showModal(response.message || "Rekod Telah Berjaya Disimpan!", "Berjaya", whatsappMessage);
         
         document.getElementById("waterForm").reset();
