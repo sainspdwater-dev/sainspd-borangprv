@@ -398,29 +398,68 @@
     function getSelectedDateInfo() {
       var dateVal = document.getElementById("tarikh").value;
       if (!dateVal) return null;
-      var d = new Date(dateVal);
       var months = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
+      var parts = dateVal.split("-").map(Number);
+      if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return null;
       return {
-        bulan: months[d.getMonth()],
-        tahun: d.getFullYear()
+        bulan: months[parts[1] - 1],
+        tahun: parts[0]
       };
     }
 
+    function normalizeTaskText(value) {
+      return String(value || "")
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase()
+        .replace(/[’‘`]/g, "'")
+        .replace(/\bBKT\b/g, "BUKIT")
+        .replace(/\bTMN\b/g, "TAMAN")
+        .replace(/\bSI\s+RUSA\b/g, "SIRUSA")
+        .replace(/[^A-Z0-9]+/g, " ")
+        .trim()
+        .replace(/\s+/g, " ");
+    }
+
+    function normalizeLocation(value) {
+      var location = normalizeTaskText(value);
+      var aliases = {
+        "PRV PERINDUSTRIAN PERDANA BUKIT PALONG": "PRV PERINDUSTRIAN BUKIT PALONG",
+        "PRV TAMAN WAWASAN LUKUT MAKMUR": "PRV LUKUT MAKMUR"
+      };
+      return aliases[location] || location;
+    }
+
+    function isSameReportingYear(completedYear, selectedYear) {
+      var completed = Number(completedYear);
+      var selected = Number(selectedYear);
+      if (completed === selected) return true;
+
+      // Google Sheets can interpret a date entered as 7-06-26 as year 1926.
+      // Match it to 2026 only when the last two digits are the same.
+      return completed >= 1900 && completed < 2000 && selected >= 2000 &&
+        completed % 100 === selected % 100;
+    }
+
+    function isTaskCompleted(task, dateInfo) {
+      if (!masterData || !Array.isArray(masterData.completed)) return false;
+      var taskLocation = normalizeLocation(task.lokasi);
+
+      return masterData.completed.some(c =>
+        normalizeLocation(c.lokasi) === taskLocation &&
+        normalizeTaskText(c.bulan) === dateInfo.bulan &&
+        isSameReportingYear(c.tahun, dateInfo.tahun)
+      );
+    }
+
     function getAvailableBerjadualTasks() {
-      if (!masterData) return [];
+      if (!masterData || !Array.isArray(masterData.schedule)) return [];
       var dateInfo = getSelectedDateInfo();
       if (!dateInfo) return []; 
       
       return masterData.schedule.filter(t => {
-        if (t.bulan !== dateInfo.bulan) return false; 
-        
-        var isCompleted = masterData.completed.some(c => 
-          c.lokasi === t.lokasi.toUpperCase() && 
-          c.bulan === dateInfo.bulan && 
-          c.tahun === dateInfo.tahun
-        );
-        
-        return !isCompleted;
+        if (normalizeTaskText(t.bulan) !== dateInfo.bulan) return false;
+        return !isTaskCompleted(t, dateInfo);
       });
     }
 
@@ -481,8 +520,9 @@
       let tasks = kat === "BERJADUAL" ? getAvailableBerjadualTasks() : getTidakBerjadualTasks();
       let filteredTasks = tasks.filter(t => t.jenis === jenis && String(t.zon) === String(zon));
       
+      // Set mengekalkan urutan asal baris Zon!N2:Q. Jangan susun semula abjad.
       let lokasiSet = new Set(filteredTasks.map(t => t.lokasi));
-      populateDropdown("lokasi", Array.from(lokasiSet).filter(Boolean).sort());
+      populateDropdown("lokasi", Array.from(lokasiSet).filter(Boolean));
     }
 
     function checkOther(selectId, divId) {
@@ -560,7 +600,7 @@
       window.open("https://wa.me/?text=" + encodedText, "_blank");
     }
 
-    function handleFormSubmit(event) {
+    async function handleFormSubmit(event) {
       event.preventDefault(); 
 
       const turnstileToken = document.querySelector('[name="cf-turnstile-response"]').value;
@@ -589,17 +629,51 @@
 
       let whatsappMessage = generateWhatsAppText(formObject);
 
-      fetch(WORKER_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          action: "saveData", 
-          formObject: formObject,
-          turnstileToken: turnstileToken
-        })
-      })
-      .then(res => res.json())
-      .then(response => {
+      try {
+        // Ambil data paling baharu sebelum simpan supaya pilihan yang baru
+        // diselesaikan oleh pengguna lain tidak dihantar sekali lagi.
+        if (formObject.kategori === "BERJADUAL") {
+          const latestResult = await fetch(WORKER_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "getLokasi" })
+          });
+          const latestPayload = await latestResult.json();
+          if (!latestResult.ok || latestPayload.status !== "success") {
+            throw new Error(latestPayload.message || "Tidak dapat menyemak rekod terkini.");
+          }
+
+          masterData = latestPayload.data;
+          const isStillAvailable = getAvailableBerjadualTasks().some(task =>
+            normalizeLocation(task.lokasi) === normalizeLocation(formObject.lokasi) &&
+            normalizeTaskText(task.jenis) === normalizeTaskText(formObject.jenisPenyelenggaraan) &&
+            String(task.zon) === String(formObject.zon)
+          );
+
+          if (!isStillAvailable) {
+            showModal(
+              "Lokasi ini sudah direkodkan untuk bulan yang dipilih. Sila pilih lokasi lain.",
+              "Rekod Telah Wujud"
+            );
+            handleKategoriChange();
+            return;
+          }
+        }
+
+        const saveResult = await fetch(WORKER_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "saveData",
+            formObject: formObject,
+            turnstileToken: turnstileToken
+          })
+        });
+        const response = await saveResult.json();
+        if (!saveResult.ok || response.status === "error" || response.success === false) {
+          throw new Error(response.message || "Pelayan gagal menyimpan rekod.");
+        }
+
         showModal(response.message || "Rekod Telah Berjaya Disimpan!", "Berjaya", whatsappMessage);
         
         document.getElementById("waterForm").reset();
@@ -610,32 +684,16 @@
         
         document.getElementById("dilaksanakanOlehOtherGroup").style.display = "none";
         document.getElementById("saizOtherGroup").style.display = "none";
-
-        document.getElementById("submitBtn").style.display = "block";
-        document.getElementById("loadingMessage").style.display = "none";
-
-        fetch(WORKER_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "getLokasi" })
-        })
-        .then(res => res.json())
-        .then(data => { if (data.status === "success") masterData = data.data; });
-
-        if (typeof turnstile !== 'undefined') {
-          turnstile.reset();
-        }
-      })
-      .catch(error => {
+      } catch (error) {
         showModal("Gagal menghantar borang: " + error.toString(), "Ralat");
-        
+      } finally {
         document.getElementById("submitBtn").style.display = "block";
         document.getElementById("loadingMessage").style.display = "none";
 
         if (typeof turnstile !== 'undefined') {
           turnstile.reset();
         }
-      });
+      }
     }
   </script>
 </body>
