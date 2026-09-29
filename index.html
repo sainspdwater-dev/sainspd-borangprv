@@ -441,15 +441,50 @@
         completed % 100 === selected % 100;
     }
 
+    function getLegacyCompletedLocations(completedTask, dateInfo) {
+      if (!isSameReportingYear(completedTask.tahun, dateInfo.tahun)) return [];
+      if (normalizeTaskText(completedTask.bulan) !== dateInfo.bulan) return [];
+
+      // Beberapa penghantaran September 2026 daripada borang lama tersimpan
+      // dengan nama DMZ walaupun ulasan kerja menyatakan PRV yang diservis.
+      // Pemetaan ini hanya memulihkan rekod sejarah tersebut; rekod baharu
+      // sudah menyimpan lokasi PRV daripada jadual Zon!N2:Q.
+      var legacyAliases = {
+        "2026|SEPTEMBER|DMZ BUKIT KUAH 300 BUKIT KUAH 250": [
+          "PRV Outlet Kolam Bukit Kuau Lama",
+          "PRV Outlet Kolam Bukit Kuau Baru"
+        ],
+        "2026|SEPTEMBER|DMZ SIRUSA 450 PINANG DUYUNG 200": [
+          "PRV Outlet SiRusa 300mm",
+          "PRV Outlet SiRusa 400mm"
+        ],
+        "2026|SEPTEMBER|DMZ SIRUSA 450 DESA RUSA 200": [
+          "PRV Eastern Garden Bt.4 Jalan Pantai"
+        ],
+        "2026|SEPTEMBER|DMZ SIRUSA 900 BANDAR SUNGGALA 150": [
+          "PRV Bandar Sunggala",
+          "PRV Taman Shorea"
+        ],
+        "2026|SEPTEMBER|DMZTUNGGAL 300 PENGKALAN DURIAN 150": [
+          "PRV Kg Linggi (Hj Yusof)",
+          "PRV Pekan Linggi"
+        ]
+      };
+
+      var key = dateInfo.tahun + "|" + dateInfo.bulan + "|" + normalizeTaskText(completedTask.lokasi);
+      return (legacyAliases[key] || []).map(normalizeLocation);
+    }
+
     function isTaskCompleted(task, dateInfo) {
       if (!masterData || !Array.isArray(masterData.completed)) return false;
       var taskLocation = normalizeLocation(task.lokasi);
 
-      return masterData.completed.some(c =>
-        normalizeLocation(c.lokasi) === taskLocation &&
-        normalizeTaskText(c.bulan) === dateInfo.bulan &&
-        isSameReportingYear(c.tahun, dateInfo.tahun)
-      );
+      return masterData.completed.some(c => {
+        if (normalizeTaskText(c.bulan) !== dateInfo.bulan) return false;
+        if (!isSameReportingYear(c.tahun, dateInfo.tahun)) return false;
+        if (normalizeLocation(c.lokasi) === taskLocation) return true;
+        return getLegacyCompletedLocations(c, dateInfo).includes(taskLocation);
+      });
     }
 
     function getAvailableBerjadualTasks() {
